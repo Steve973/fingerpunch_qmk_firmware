@@ -98,3 +98,71 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
     return true;
 }
+
+void process_joystick(void) {
+    int16_t x = analogRead(VIK_GPIO_1);
+    int16_t y = analogRead(VIK_GPIO_2);
+
+    // Define thresholds for movement detection
+    const int THRESHOLD = 100; // Adjust as necessary
+    
+    // Map X-axis
+    if (x < 512 - THRESHOLD) { // Left
+        tap_code(KC_LEFT);
+    } else if (x > 512 + THRESHOLD) { // Right
+        tap_code(KC_RIGHT);
+    }
+
+    // Map Y-axis
+    if (y < 512 - THRESHOLD) { // Down
+        tap_code(KC_DOWN);
+    } else if (y > 512 + THRESHOLD) { // Up
+        tap_code(KC_UP);
+    }
+}
+
+void process_joystick_by_quadrant(void) {
+    // Define constants
+    const int16_t CENTER = 512;     // Whatever is the neutral position
+    const int16_t THRESHOLD = 100;  // Some portion of the max value
+    const float PI = 3.14159;       // Our favorite trig constant
+    const float PI_OVER_4 = PI / 4; // For determining octant
+
+    // Friendly names for the octant numbers
+    const JS_OCTANT_RIGHT = 0;
+    const JS_OCTANT_UP_RIGHT = 1;
+    const JS_OCTANT_UP = 2;
+    const JS_OCTANT_UP_LEFT = 3;
+    const JS_OCTANT_LEFT = 4;
+    const JS_OCTANT_DOWN_LEFT = 5;
+    const JS_OCTANT_DOWN = 6;
+    const JS_OCTANT_DOWN_RIGHT = 7;
+
+    // Read joystick values and calculate offsets
+    int16_t x = analogRead(VIK_GPIO_1) - CENTER;
+    int16_t y = analogRead(VIK_GPIO_2) - CENTER;
+    
+    float magnitude = sqrt(x*x + y*y);
+    
+    if (magnitude > THRESHOLD) {
+        float angle = atan2(y, x);
+        if (angle < 0) angle += 2 * PI;
+        
+        uint8_t octant = (uint8_t)(angle / PI_OVER_4);
+        
+        switch (octant) {
+            case JS_OCTANT_RIGHT: tap_code(KC_RIGHT); break;
+            case JS_OCTANT_UP_RIGHT: tap_code(KC_RIGHT); tap_code(KC_UP); break;
+            case JS_OCTANT_UP: tap_code(KC_UP); break;
+            case JS_OCTANT_UP_LEFT: tap_code(KC_UP); tap_code(KC_LEFT); break;
+            case JS_OCTANT_LEFT: tap_code(KC_LEFT); break;
+            case JS_OCTANT_DOWN_LEFT: tap_code(KC_LEFT); tap_code(KC_DOWN); break;
+            case JS_OCTANT_DOWN: tap_code(KC_DOWN); break;
+            case JS_OCTANT_DOWN_RIGHT: tap_code(KC_DOWN); tap_code(KC_RIGHT); break;
+        }
+    }
+}
+
+void matrix_scan_user(void) {
+    process_joystick();
+}

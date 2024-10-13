@@ -12,7 +12,7 @@ LTO_ENABLE = no
 #
 BOOTMAGIC_ENABLE = no       # Virtual DIP switch configuration
 EXTRAKEY_ENABLE = yes       # Audio control and System control
-CONSOLE_ENABLE = no        # Console for debug
+CONSOLE_ENABLE = yes        # Console for debug
 COMMAND_ENABLE = no        # Commands for debug and configuration
 # Do not enable SLEEP_LED_ENABLE. it uses the same timer as BACKLIGHT_ENABLE
 SLEEP_LED_ENABLE = no       # Breathing sleep LED during USB suspend
@@ -36,6 +36,7 @@ ENCODER_ENABLE = no
 MOUSEKEY_ENABLE = no
 
 SRC += keyboards/fingerpunch/src/fp_matrix_74hc595_spi.c
+SRC += keyboards/fingerpunch/pinkiesout/v3_1/keymaps/default/vikstik.c
 QUANTUM_LIB_SRC += spi_master.c
 CUSTOM_MATRIX = lite
 
@@ -50,5 +51,12 @@ SERIAL_DRIVER = vendor
 WS2812_DRIVER = vendor
 
 VIK_ENABLE = yes
+
+OLED_ENABLE = yes
+OLED_TRANSPORT = i2c
+
+# For the analog mini joystick
+JOYSTICK_ENABLE = yes
+ANALOG_DRIVER_REQUIRED = yes
 
 include keyboards/fingerpunch/src/rules.mk
