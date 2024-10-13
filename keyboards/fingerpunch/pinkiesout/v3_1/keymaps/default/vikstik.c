@@ -45,13 +45,14 @@ static const stick_mode_handler stick_modes[] = {
  * This constant defines the default settings for the joystick, including the mode,
  * inner and outer deadzones, and the installed orientation of the joystick that
  * indicates which way "up" is facing, as physically installed.  For example, if
- * up is facing left, the value would be "L".
+ * up is facing left, the value would be LEFT.
  */
-static const vikstik_config_t vikstik_config_DEFAULT = {
+static const vikstik_config_t VIKSTIK_CONFIG_DEFAULT = {
     .mode = VIKSTIK_SM_ARROWS,
     .deadzone_inner = INNER_DEADZONE,
     .deadzone_outer = OUTER_DEADZONE,
-    .up_orientation = UP
+    .up_orientation = UP,
+    .up_angle = 0
 };
 
 /**
@@ -497,7 +498,7 @@ void keyboard_post_init_user(void) {
  * the EEPROM with these values.
  */
 void eeconfig_init_user(void) {
-    vikstik_config = vikstik_config_DEFAULT;
+    vikstik_config = VIKSTIK_CONFIG_DEFAULT;
     eeconfig_update_user_datablock(&vikstik_config);
 }
 
