@@ -14,8 +14,6 @@
 #define JOYSTICK_MIN_OUT -127
 #define JOYSTICK_MAX_OUT 127
 
-#define JOYSTICK_DEBUG false
-
 #define MIN_VAL(a, b) ((a) < (b) ? (a) : (b))
 #define MAX_VAL(a, b) ((a) > (b) ? (a) : (b))
 

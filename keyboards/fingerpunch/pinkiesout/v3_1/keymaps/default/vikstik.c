@@ -22,7 +22,7 @@ typedef struct joystick_calibration {
     int16_t y_neutral;
     int16_t deadzone_inner;
     int16_t deadzone_outer;
-    int16_t scale_factor;
+    float   scale_factor;
 } joystick_calibration_t;
 
 static uint32_t stick_timer;
@@ -523,7 +523,7 @@ void keyboard_post_init_user(void) {
     bool is_invalid = (vikstik_config.mode >= VIKSTIK_SM_END ||
                        vikstik_config.up_orientation < UP || vikstik_config.up_orientation >= ORIENTATION_COUNT || 
                        vikstik_config.up_angle < 0 || vikstik_config.up_angle > 360);
-    if (is_uninitialized || is_invalid || true) {
+    if (is_uninitialized || is_invalid) {
         eeconfig_init_user();
     }
 }
