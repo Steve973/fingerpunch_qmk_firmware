@@ -57,7 +57,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     QK_BOOT,     KC_F1,   KC_F2,     KC_F3,     KC_F4,     KC_F5,     KC_F6,                        KC_F7,     KC_F8,     KC_F9,     KC_F10,    KC_F11,    KC_F12,    _______,
     RGB_TOG,   RGB_MOD,   RGB_VAI,   RGB_SAI,   RGB_HUI,   RGB_SPI,   _______,                      RGB_TOG,   RGB_MOD,   RGB_VAI,   RGB_SAI,   RGB_HUI,   RGB_SPI,   _______,
     _______,   RGB_RMOD,  RGB_VAD,   RGB_SAD,   RGB_HUD,   RGB_SPD,   _______,                      _______,   RGB_RMOD,  RGB_VAD,   RGB_SAD,   RGB_HUD,   RGB_SPD,   _______,
-    _______,   _______,   _______,   _______,   _______,   _______,   _______,                      _______,   _______,   _______,   _______,   _______,   _______,   _______,
+    _______,   _______,   _______,   _______,   _______,  VJS_QUAD,   _______,                      _______,   _______,   _______,   _______,   _______,   _______,   _______,
                           _______,   _______,   _______,   _______,   _______,  XXXXXXX,  XXXXXXX,  _______,   _______,   _______,   _______,   _______
 )
 };
@@ -95,30 +95,20 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             }
             return false;
 
-        case VJS_IDZ:
-            if (record->event.pressed) {
-                shifted = get_mods() & MOD_MASK_SHIFT;
-                set_deadzone_inner(get_deadzone_inner() + (shifted ? -1 : 1));
-            }
-            return false;
-
-        case VJS_ODZ:
-            if (record->event.pressed) {
-                shifted = get_mods() & MOD_MASK_SHIFT;
-                set_deadzone_outer(get_deadzone_outer() + (shifted ? -1 : 1));
-            }
-            return false;
-
         case VJS_QUAD:
             if (!record->event.pressed) {
+                uprintf("VJS_QUAD key released\n");
                 int8_t raw_quadrant;
                 int16_t raw_angle;
                 get_raw_quadrant(&raw_quadrant, &raw_angle);
+                uprintf("raw_quadrant: %d, raw_angle: %d\n", raw_quadrant, raw_angle);
                 if (raw_quadrant > -1) {
+                    uprintf("Setting stick orientation and angle\n");
                     set_stick_up_orientation(raw_quadrant);
                     set_stick_up_angle(raw_angle);
                 } else {
                     shifted = get_mods() & MOD_MASK_SHIFT;
+                    uprintf("Stepping stick orientation, shifted: %d\n", shifted);
                     step_stick_up_orientation(shifted ? -1 : 1);
                 }
             }

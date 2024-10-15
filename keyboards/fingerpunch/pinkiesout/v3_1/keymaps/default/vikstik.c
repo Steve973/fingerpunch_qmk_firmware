@@ -6,6 +6,13 @@
 #include "analog.h"
 #include <math.h>
 
+#ifndef M_PI
+    #define M_PI 3.14159265358979323846
+#endif
+
+#define MAX_DISTANCE_RAW sqrt(2 * JOYSTICK_MAX_RAW * JOYSTICK_MAX_RAW)
+#define MAX_DISTANCE_OUT sqrt(2 * JOYSTICK_MAX_OUT * JOYSTICK_MAX_OUT)
+
 _Static_assert(sizeof(vikstik_config_t) == EECONFIG_USER_DATA_SIZE, "Mismatch in keyboard EECONFIG stored data");
 
 typedef void (*stick_mode_handler)(int8_t x, int8_t y);
@@ -13,6 +20,8 @@ typedef void (*stick_mode_handler)(int8_t x, int8_t y);
 typedef struct joystick_calibration {
     int16_t x_neutral;
     int16_t y_neutral;
+    int16_t deadzone_inner;
+    int16_t deadzone_outer;
 } joystick_calibration_t;
 
 static uint32_t stick_timer;
@@ -43,15 +52,20 @@ static const stick_mode_handler stick_modes[] = {
  * @brief Default configuration for the joystick.
  *
  * This constant defines the default settings for the joystick, including the mode,
- * inner and outer deadzones, and the installed orientation of the joystick that
- * indicates which way "up" is facing, as physically installed.  For example, if
- * up is facing left, the value would be LEFT.
+ * inner and outer deadzones, and the installed orientation of the joystick.  For
+ * example, if the joystick is installed where it is rotated a quarter turn
+ * counterclockwise, like this:
+ * 
+ *          R
+ *       U--|--D
+ *          L
+ * 
+ * the installed orientation has the "RIGHT" direction facing up.  So, the value for
+ * the "up orientation", in this case, is "RIGHT".
  */
 static const vikstik_config_t VIKSTIK_CONFIG_DEFAULT = {
     .mode = VIKSTIK_SM_ARROWS,
-    .deadzone_inner = INNER_DEADZONE,
-    .deadzone_outer = OUTER_DEADZONE,
-    .up_orientation = UP,
+    .up_orientation = LEFT,
     .up_angle = 0
 };
 
@@ -136,7 +150,7 @@ static void handle_axis(int8_t curr, int8_t prev, uint16_t pos_key, uint16_t neg
  */
 static void handle_vikstik_keys_4(int8_t x, int8_t y, uint16_t u, uint16_t l, uint16_t d, uint16_t r) {
     static int8_t px, py;
-    handle_axis(y, py, d, u);
+    handle_axis(y, py, u, d);
     handle_axis(x, px, r, l);
     px = x;
     py = y;
@@ -177,67 +191,22 @@ static void handle_wasd(int8_t x, int8_t y) {
  * @param y The y-axis value.
  */
 static void handle_arrows(int8_t x, int8_t y) {
-    static uint32_t last_print = 0;
-    if (timer_elapsed32(last_print) > 1000) { // Print every second
-        uprintf("Handling arrows\n");
-        last_print = timer_read32();
-    }
     handle_vikstik_keys_4(x, y, KC_UP, KC_LEFT, KC_DOWN, KC_RGHT);
 }
 
 /**
- * @brief Sets the inner deadzone for the joystick.
+ * @brief Gets the orientation of the joystick's direction facing "up" from the perspective
+ * of the user, based on how it is installed.
  *
- * This function updates the inner deadzone value for the joystick and saves the
- * configuration to persistent storage.
- *
- * @param idz The new inner deadzone value.
- */
-void set_deadzone_inner(int8_t idz) {
-    vikstik_config.deadzone_inner = idz;
-    eeconfig_update_user_datablock(&vikstik_config);
-}
-
-/**
- * @brief Gets the current inner deadzone value for the joystick.
- *
- * This function returns the current inner deadzone value from the joystick configuration.
- *
- * @return The current inner deadzone value.
- */
-int8_t get_deadzone_inner() {
-    return vikstik_config.deadzone_inner;
-}
-
-/**
- * @brief Sets the outer deadzone value for the joystick.
- *
- * This function returns the current outer deadzone value from the joystick configuration.
+ * For example, if the joystick is installed where it is rotated a quarter turn
+ * counterclockwise, like this:
  * 
- * @param odz The new outer deadzone value.
- */
-void set_deadzone_outer(int8_t odz) {
-    vikstik_config.deadzone_outer = odz;
-    eeconfig_update_user_datablock(&vikstik_config);
-}
-
-/**
- * @brief Gets the current outer deadzone value for the joystick.
- *
- * This function returns the current outer deadzone value from the joystick configuration.
- *
- * @return The current outer deadzone value.
- */
-int8_t get_deadzone_outer() {
-    return vikstik_config.deadzone_outer;
-}
-
-/**
- * @brief Gets the orientation of the joystick's "up" direction based on how it is installed.
- *
- * This function returns the current installed "north" direction based on how it is installed.
- * For example, if the joystick is installed with the "up" direction facing left, the value
- * would be "L".
+ *          R
+ *       U--|--D
+ *          L
+ * 
+ * the installed orientation has the "RIGHT" direction facing up.  So, the value for
+ * the "up orientation", in this case, is "RIGHT".
  *
  * @return The current up orientation value.
  */
@@ -246,10 +215,18 @@ int8_t get_stick_up_orientation() {
 }
 
 /**
- * @brief Sets the orientation of the joystick's "up" direction based on how it is installed.
+ * @brief Sets the orientation of the joystick's direction facing "up" from the perspective
+ * of the user, based on how it is installed.
  *
- * This function updates the orientation of the joystick's "up" direction, and saves the
- * configuration to persistent storage.
+ * For example, if the joystick is installed where it is rotated a quarter turn
+ * counterclockwise, like this:
+ * 
+ *          R
+ *       U--|--D
+ *          L
+ * 
+ * the installed orientation has the "RIGHT" direction facing up.  So, the value for
+ * the "up orientation", in this case, is "RIGHT".
  *
  * @param quadrants The new stick up orientation value.
  */
@@ -276,8 +253,14 @@ void step_stick_up_orientation(int8_t step) {
  * @brief Gets the angle of the joystick's "up" direction based on how it is installed.
  *
  * This function returns the current angle of the joystick's "up" direction based on how it is installed.
- * For example, if the joystick is installed with the "up" direction facing left, the value
- * would be 90 degrees.
+ * For example, if the joystick is installed where it is rotated a quarter turn
+ * counterclockwise, like this:
+ * 
+ *          R
+ *       U--|--D
+ *          L
+ * 
+ * the value would be 90 degrees.
  *
  * @return The current up angle value.
  */
@@ -311,30 +294,55 @@ void step_stick_mode() {
     dprintf("Stick mode now %i\n", vikstik_config.mode);
 }
 
+/**
+ * @brief Reads the raw analog joystick values. 
+ * 
+ * This function reads the raw analog joystick values from the configured pins.
+ * 
+ * @param rawx Pointer to store the raw x-axis value.
+ * @param rawy Pointer to store the raw y-axis value.
+ */
 void read_vikstik_raw(int16_t* rawx, int16_t* rawy) {
     *rawx = analogReadPin(VIK_GPIO_1);
     *rawy = analogReadPin(VIK_GPIO_2);
 }
 
+/**
+ * @brief Applies scaling and deadzone to the joystick input.
+ *
+ * This function scales the raw joystick input values to the JOYSTICK_OUT_MIN to JOYSTICK_OUT_MAX range,
+ * applies inner deadzone to the calibrated values, and assigns the scaled values to the output.
+ *
+ * @param rawx Raw x-axis value.
+ * @param rawy Raw y-axis value.
+ * @param outx Pointer to store the processed x-axis value.
+ * @param outy Pointer to store the processed y-axis value.
+ */
 void apply_scaling_and_deadzone(int16_t rawx, int16_t rawy, int8_t* outx, int8_t* outy) {
     // Convert to signed values centered at 0
     int16_t x = rawx - vikstik_calibration.x_neutral;
     int16_t y = rawy - vikstik_calibration.y_neutral;
 
-    // Apply inner deadzone to calibrated values
-    x = (abs(x) < INNER_DEADZONE) ? 0 : x;
-    y = (abs(y) < INNER_DEADZONE) ? 0 : y;
+    // Calculate distance from center
+    float distance = sqrt(x*x + y*y);
 
-    // Scale x and y to JOYSTICK_OUT_MIN to JOYSTICK_OUT_MAX range
-    int8_t scalex = (x > 0) ? project(x, 0, JOYSTICK_MAX_RAW/2 - OUTER_DEADZONE, 0, JOYSTICK_OUT_MAX) :
-                    (x < 0) ? project(x, -JOYSTICK_MAX_RAW/2 + OUTER_DEADZONE, 0, JOYSTICK_OUT_MIN, 0) : 0;
-                    
-    int8_t scaley = (y > 0) ? project(y, 0, JOYSTICK_MAX_RAW/2 - OUTER_DEADZONE, 0, JOYSTICK_OUT_MAX) :
-                    (y < 0) ? project(y, -JOYSTICK_MAX_RAW/2 + OUTER_DEADZONE, 0, JOYSTICK_OUT_MIN, 0) : 0;
+    // Filter for values outside of the deadzone
+    if (distance < vikstik_calibration.deadzone_inner) {
+        *outx = 0;
+        *outy = 0;
+        return;
+    }
+
+    // Calculate the scaling factor
+    float scale = ((float)(JOYSTICK_MAX_OUT)) / (JOYSTICK_MAX_RAW / 2);
     
-    // Directly assign the scaled values to the output
-    *outx = clamp(scalex, JOYSTICK_OUT_MIN, JOYSTICK_OUT_MAX);
-    *outy = clamp(scaley, JOYSTICK_OUT_MIN, JOYSTICK_OUT_MAX);
+    // Apply the scaling to x and y while preserving direction
+    float scaled_x = x * scale;
+    float scaled_y = y * scale;
+
+    // Clamp to output range
+    *outx = clamp(scaled_x, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
+    *outy = clamp(scaled_y, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
 }
 
 /**
@@ -347,15 +355,15 @@ void apply_scaling_and_deadzone(int16_t rawx, int16_t rawy, int8_t* outx, int8_t
  */
 static void handle_rotation(int8_t x, int8_t y, int8_t* outx, int8_t* outy) {
     switch (vikstik_config.up_orientation) {
-        case LEFT: // rotate 90 degrees
+        case LEFT: // rotate 270 degrees counterclockwise
             *outx = y;
             *outy = -x;
             break;
-        case DOWN: // rotate 180 degrees
+        case DOWN: // rotate 180 degrees counterclockwise
             *outx = -x;
             *outy = -y;
             break;
-        case RIGHT: // rotate 270 degrees
+        case RIGHT: // rotate 90 degrees counterclockwise
             *outx = -y;
             *outy = x;
             break;
@@ -390,6 +398,54 @@ static void calibrate_vikstik(joystick_calibration_t* stick) {
 
     stick->x_neutral = total_x / CALIBRATION_SAMPLE_COUNT;
     stick->y_neutral = total_y / CALIBRATION_SAMPLE_COUNT;
+
+    int16_t ideal_neutral = (JOYSTICK_MIN_RAW + JOYSTICK_MAX_RAW) / 2;
+    int16_t x_drift = abs(stick->x_neutral - ideal_neutral);
+    int16_t y_drift = abs(stick->y_neutral - ideal_neutral);
+    int16_t min_deadzone_inner = MAX_VAL(x_drift, y_drift);
+    stick->deadzone_inner = MAX_VAL(INNER_DEADZONE, min_deadzone_inner);
+    stick->deadzone_outer = OUTER_DEADZONE;
+}
+
+/**
+ * @brief Get the raw (unaltered, un-rotated) quadrant based on joystick position.
+ *
+ * This function determines the quadrant based on the joystick position without any rotation.
+ * It returns the quadrant number (0-3) based on the angle of the joystick.
+ * @return The quadrant number (0-3), or -1 if the joystick is at its neutral position.
+ */
+static void calculate_raw_quadrant(int16_t rawx, int16_t rawy, int8_t* out_quadrant, int16_t* out_angle) {
+    int8_t scalex = 0, scaley = 0;
+    apply_scaling_and_deadzone(rawx, rawy, &scalex, &scaley);
+
+    // if the joystick is neutral, bail
+    if (scalex == 0 && scaley == 0) {
+        *out_quadrant = -1;
+        *out_angle = -1;
+        return;
+    }
+
+    // Some trig sauce to determine the angle for calculations
+    // where we may need a more precise/exact rotation, e.g.,
+    // when we need something other than arrow keys or "wasd"
+    // directions:
+    float angle = atan2(scaley, scalex) * (180.0 / M_PI);
+    angle = angle < 0 ? angle + 360 : angle;
+    *out_angle = (int16_t)angle;
+
+    // For more simple or discrete translation, determine quadrant
+    // based on 45-degree sectors centered on cardinal directions:
+    if (angle >= 67 && angle < 113) {
+        *out_quadrant = 3; // installed with "left" up
+    } else if (angle >= 157 && angle < 203) {
+        *out_quadrant = 2; // installed with "bottom" up
+    } else if (angle >= 247 && angle < 293) {
+        *out_quadrant = 1; // installed with "right" up
+    } else if ((angle > 337) || (angle < 23)) {
+        *out_quadrant = 0; // installed with "top" up
+    } else {
+        *out_quadrant = -1;
+    }
 }
 
 /**
@@ -403,19 +459,37 @@ static void calibrate_vikstik(joystick_calibration_t* stick) {
  * @param outy Pointer to store the processed y-axis value.
  */
 static void read_vikstik(int8_t* outx, int8_t* outy) {
-    int16_t x = 0, y = 0;
-    read_vikstik_raw(&x, &y);
+    const char* vikstik_up_orientation_names[] = {
+        "UP",
+        "RIGHT",
+        "DOWN",
+        "LEFT"
+    };
+    int16_t rawx = 0, rawy = 0;
+    read_vikstik_raw(&rawx, &rawy);
 
-    int8_t scalex = 0, scaley = 0;
-    apply_scaling_and_deadzone(x, y, &scalex, &scaley);
+    int8_t scalex = rawx, scaley = rawy;
+    apply_scaling_and_deadzone(rawx, rawy, &scalex, &scaley);
 
     // Apply rotation
-    int8_t rotatex = 0, rotatey = 0;
+    int8_t rotatex = scalex, rotatey = scaley;
     handle_rotation(scalex, scaley, &rotatex, &rotatey);
     
     // Directly assign the scaled values to the output
-    *outx = clamp(scalex, JOYSTICK_OUT_MIN, JOYSTICK_OUT_MAX);
-    *outy = clamp(scaley, JOYSTICK_OUT_MIN, JOYSTICK_OUT_MAX);
+    *outx = clamp(rotatex, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
+    *outy = clamp(rotatey, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
+
+    // Debuggery!
+    static uint32_t last_print_time = 0;
+    uint32_t current_time = timer_read32();
+    if (current_time - last_print_time > 1000) {  // 1000 milliseconds = 1 second
+        last_print_time = current_time;
+        uprintf("Up orientation: %s\n", vikstik_up_orientation_names[vikstik_config.up_orientation]);
+        uprintf("Raw joystick values:     x=%d, y=%d\n", rawx, rawy);
+        uprintf("Scaled joystick values:  x=%d, y=%d\n", scalex, scaley);
+        uprintf("Rotated joystick values: x=%d, y=%d\n", rotatex, rotatey);
+        uprintf("Clamped joystick values: x=%d, y=%d\n", *outx, *outy);
+    }
 }
 
 /**
@@ -443,27 +517,9 @@ static void handle_vikstik(void) {
  * @return The quadrant number (0-3), or -1 if the joystick is at its neutral position.
  */
 void get_raw_quadrant(int8_t* out_quadrant, int16_t* out_angle) {
-    int8_t x = 0, y = 0;
-    read_vikstik(&x, &y);
-    if (x == 0 && y == 0) {
-        *out_quadrant = -1;
-        *out_angle = -1;
-    } else {
-        float angle = atan2(y, x) * (180.0 / M_PI);
-        angle = angle < 0 ? angle + 360 : angle;
-        int8_t result = -1;
-        if (((angle >= 337) && (angle < 360)) ||((angle >= 0) && (angle < 23))) {
-            result = 0; // raw "top" is up
-        } else if (angle >= 67 && angle < 113) {
-            result = 3; // raw "right" is up
-        } else if (angle >= 157 && angle < 203) {
-            result = 2; // raw "bottom" is up
-        } else if (angle >= 247 && angle < 293) {
-            result = 1; // raw "left" is up
-        }
-        *out_quadrant = result;
-        *out_angle = angle;
-    }
+    int16_t rawx = 0, rawy = 0;
+    read_vikstik_raw(&rawx, &rawy);
+    calculate_raw_quadrant(rawx, rawy, out_quadrant, out_angle);
 }
 
 /**
@@ -478,15 +534,13 @@ void keyboard_post_init_user(void) {
     eeconfig_read_user_datablock(&vikstik_config);
     // Check if all values are zero (indicating uninitialized EEPROM)
     bool is_uninitialized = (vikstik_config.mode == 0 &&
-                             vikstik_config.deadzone_inner == 0 &&
-                             vikstik_config.deadzone_outer == 0 &&
-                             vikstik_config.up_orientation == UP);
+                             vikstik_config.up_orientation == UP &&
+                             vikstik_config.up_angle == 0);
     // Check if any field has an invalid value
     bool is_invalid = (vikstik_config.mode >= VIKSTIK_SM_END ||
-                       vikstik_config.deadzone_inner < -127 || vikstik_config.deadzone_inner > 127 ||
-                       vikstik_config.deadzone_outer < -127 || vikstik_config.deadzone_outer > 127 ||
-                       vikstik_config.up_orientation < UP || vikstik_config.up_orientation >= ORIENTATION_COUNT);
-    if (is_uninitialized || is_invalid) {
+                       vikstik_config.up_orientation < UP || vikstik_config.up_orientation >= ORIENTATION_COUNT || 
+                       vikstik_config.up_angle < 0 || vikstik_config.up_angle > 360);
+    if (is_uninitialized || is_invalid || true) {
         eeconfig_init_user();
     }
 }
