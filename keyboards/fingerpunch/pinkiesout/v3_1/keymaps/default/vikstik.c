@@ -22,6 +22,7 @@ typedef struct joystick_calibration {
     int16_t y_neutral;
     int16_t deadzone_inner;
     int16_t deadzone_outer;
+    int16_t scale_factor;
 } joystick_calibration_t;
 
 static uint32_t stick_timer;
@@ -332,13 +333,10 @@ void apply_scaling_and_deadzone(int16_t rawx, int16_t rawy, int8_t* outx, int8_t
         *outy = 0;
         return;
     }
-
-    // Calculate the scaling factor
-    float scale = ((float)(JOYSTICK_MAX_OUT)) / (JOYSTICK_MAX_RAW / 2);
     
-    // Apply the scaling to x and y while preserving direction
-    float scaled_x = x * scale;
-    float scaled_y = y * scale;
+    // Apply the scaling to x and y
+    float scaled_x = x * vikstik_calibration.scale_factor;
+    float scaled_y = y * vikstik_calibration.scale_factor;
 
     // Clamp to output range
     *outx = clamp(scaled_x, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
@@ -385,21 +383,24 @@ static void handle_rotation(int8_t x, int8_t y, int8_t* outx, int8_t* outy) {
  * @param rawy Raw y-axis value.
  */
 static void calibrate_vikstik(joystick_calibration_t* stick) {
+    int16_t ideal_neutral = (JOYSTICK_MIN_RAW + JOYSTICK_MAX_RAW) / 2;
     int16_t x = 0, y = 0;
-    int32_t total_x = 0;
-    int32_t total_y = 0;
+    int32_t total_x = 0, total_y = 0;
+    int16_t max_x = 0, max_y = 0;
 
     for (int i = 0; i < CALIBRATION_SAMPLE_COUNT; i++) {
         read_vikstik_raw(&x, &y);
         total_x += x;
         total_y += y;
+        max_x = MAX_VAL(max_x, x);
+        max_y = MAX_VAL(max_y, y);
         wait_ms(5); // 5 ms delay between samples
     }
 
     stick->x_neutral = total_x / CALIBRATION_SAMPLE_COUNT;
     stick->y_neutral = total_y / CALIBRATION_SAMPLE_COUNT;
+    stick->scale_factor = ((float)(JOYSTICK_MAX_OUT)) / (JOYSTICK_MAX_RAW - MAX_VAL(max_x, max_y));
 
-    int16_t ideal_neutral = (JOYSTICK_MIN_RAW + JOYSTICK_MAX_RAW) / 2;
     int16_t x_drift = abs(stick->x_neutral - ideal_neutral);
     int16_t y_drift = abs(stick->y_neutral - ideal_neutral);
     int16_t min_deadzone_inner = MAX_VAL(x_drift, y_drift);
@@ -459,12 +460,6 @@ static void calculate_raw_quadrant(int16_t rawx, int16_t rawy, int8_t* out_quadr
  * @param outy Pointer to store the processed y-axis value.
  */
 static void read_vikstik(int8_t* outx, int8_t* outy) {
-    const char* vikstik_up_orientation_names[] = {
-        "UP",
-        "RIGHT",
-        "DOWN",
-        "LEFT"
-    };
     int16_t rawx = 0, rawy = 0;
     read_vikstik_raw(&rawx, &rawy);
 
@@ -478,18 +473,6 @@ static void read_vikstik(int8_t* outx, int8_t* outy) {
     // Directly assign the scaled values to the output
     *outx = clamp(rotatex, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
     *outy = clamp(rotatey, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
-
-    // Debuggery!
-    static uint32_t last_print_time = 0;
-    uint32_t current_time = timer_read32();
-    if (current_time - last_print_time > 1000) {  // 1000 milliseconds = 1 second
-        last_print_time = current_time;
-        uprintf("Up orientation: %s\n", vikstik_up_orientation_names[vikstik_config.up_orientation]);
-        uprintf("Raw joystick values:     x=%d, y=%d\n", rawx, rawy);
-        uprintf("Scaled joystick values:  x=%d, y=%d\n", scalex, scaley);
-        uprintf("Rotated joystick values: x=%d, y=%d\n", rotatex, rotatey);
-        uprintf("Clamped joystick values: x=%d, y=%d\n", *outx, *outy);
-    }
 }
 
 /**
