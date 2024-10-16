@@ -36,7 +36,6 @@ ENCODER_ENABLE = no
 MOUSEKEY_ENABLE = no
 
 SRC += keyboards/fingerpunch/src/fp_matrix_74hc595_spi.c
-SRC += keyboards/fingerpunch/pinkiesout/v3/keymaps/default/peephand.c
 QUANTUM_LIB_SRC += spi_master.c
 CUSTOM_MATRIX = lite
 
@@ -51,10 +50,6 @@ SERIAL_DRIVER = vendor
 WS2812_DRIVER = vendor
 
 VIK_ENABLE = yes
-
-# For the analog mini joystick
-JOYSTICK_ENABLE = yes
-ANALOG_DRIVER_REQUIRED = yes
 
 ifeq ($(strip $(CIRQUE_ENABLE)), yes)
    MOUSEKEY_ENABLE := yes  # not required, but enabling for mouse button keys
