@@ -10,8 +10,11 @@
     #define M_PI 3.14159265358979323846
 #endif
 
-#define MAX_DISTANCE_RAW sqrt(2 * JOYSTICK_MAX_RAW * JOYSTICK_MAX_RAW)
-#define MAX_DISTANCE_OUT sqrt(2 * JOYSTICK_MAX_OUT * JOYSTICK_MAX_OUT)
+
+joystick_profile_t js_profile = JS_ADAFRUIT_2765;
+
+#define MAX_DISTANCE_RAW sqrt(2 * js_profile.raw_max * js_profile.raw_max)
+#define MAX_DISTANCE_OUT sqrt(2 * js_profile.out_max * js_profile.out_max)
 
 _Static_assert(sizeof(vikstik_config_t) == EECONFIG_USER_DATA_SIZE, "Mismatch in keyboard EECONFIG stored data");
 
@@ -119,8 +122,8 @@ static inline float project(float val, float rmin, float rmax, float tmin, float
  * @param neg_key The key to register when the axis value is negative.
  */
 static void handle_axis(int8_t curr, int8_t prev, uint16_t pos_key, uint16_t neg_key) {
-    int8_t curr_state = (curr > ACTUATION_POINT) - (curr < -ACTUATION_POINT);
-    int8_t prev_state = (prev > ACTUATION_POINT) - (prev < -ACTUATION_POINT);
+    int8_t curr_state = (curr > js_profile.actuation_point) - (curr < -js_profile.actuation_point);
+    int8_t prev_state = (prev > js_profile.actuation_point) - (prev < -js_profile.actuation_point);
     bool should_register = (curr_state != 0);
     if (curr_state != prev_state) {
         uint16_t key_to_handle = (should_register) ?
@@ -339,8 +342,8 @@ void apply_scaling_and_deadzone(int16_t rawx, int16_t rawy, int8_t* outx, int8_t
     float scaled_y = y * vikstik_calibration.scale_factor;
 
     // Clamp to output range
-    *outx = clamp(scaled_x, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
-    *outy = clamp(scaled_y, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
+    *outx = clamp(scaled_x, js_profile.out_min, js_profile.out_max);
+    *outy = clamp(scaled_y, js_profile.out_min, js_profile.out_max);
 }
 
 /**
@@ -383,29 +386,29 @@ static void handle_rotation(int8_t x, int8_t y, int8_t* outx, int8_t* outy) {
  * @param rawy Raw y-axis value.
  */
 static void calibrate_vikstik(joystick_calibration_t* stick) {
-    int16_t ideal_neutral = (JOYSTICK_MIN_RAW + JOYSTICK_MAX_RAW) / 2;
+    int16_t ideal_neutral = (js_profile.raw_min + js_profile.raw_max) / 2;
     int16_t x = 0, y = 0;
     int32_t total_x = 0, total_y = 0;
-    int16_t max_x = 0, max_y = 0;
+    int16_t max_neutral_x = 0, max_neutral_y = 0;
 
     for (int i = 0; i < CALIBRATION_SAMPLE_COUNT; i++) {
         read_vikstik_raw(&x, &y);
         total_x += x;
         total_y += y;
-        max_x = MAX_VAL(max_x, x);
-        max_y = MAX_VAL(max_y, y);
+        max_neutral_x = MAX_VAL(max_neutral_x, x);
+        max_neutral_y = MAX_VAL(max_neutral_y, y);
         wait_ms(5); // 5 ms delay between samples
     }
 
     stick->x_neutral = total_x / CALIBRATION_SAMPLE_COUNT;
     stick->y_neutral = total_y / CALIBRATION_SAMPLE_COUNT;
-    stick->scale_factor = ((float)(JOYSTICK_MAX_OUT)) / (JOYSTICK_MAX_RAW - MAX_VAL(max_x, max_y));
+    stick->scale_factor = ((float)(js_profile.out_max)) / (js_profile.raw_max - MAX_VAL(max_neutral_x, max_neutral_y));
 
     int16_t x_drift = abs(stick->x_neutral - ideal_neutral);
     int16_t y_drift = abs(stick->y_neutral - ideal_neutral);
     int16_t min_deadzone_inner = MAX_VAL(x_drift, y_drift);
-    stick->deadzone_inner = MAX_VAL(INNER_DEADZONE, min_deadzone_inner);
-    stick->deadzone_outer = OUTER_DEADZONE;
+    stick->deadzone_inner = MAX_VAL(js_profile.deadzone_inner, min_deadzone_inner);
+    stick->deadzone_outer = js_profile.deadzone_outer;
 }
 
 /**
@@ -471,8 +474,8 @@ static void read_vikstik(int8_t* outx, int8_t* outy) {
     handle_rotation(scalex, scaley, &rotatex, &rotatey);
     
     // Directly assign the scaled values to the output
-    *outx = clamp(rotatex, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
-    *outy = clamp(rotatey, JOYSTICK_MIN_OUT, JOYSTICK_MAX_OUT);
+    *outx = clamp(rotatex, js_profile.out_min, js_profile.out_max);
+    *outy = clamp(rotatey, js_profile.out_min, js_profile.out_max);
 }
 
 /**
@@ -546,7 +549,7 @@ void eeconfig_init_user(void) {
  * processes the joystick input by calling the handle_vikstik function.
  */
 void process_vikstik(void) {
-    if (timer_elapsed(stick_timer) > STICK_TIMER_MS) {
+    if (timer_elapsed(stick_timer) > js_profile.stick_timer_ms) {
         handle_vikstik();
         stick_timer = timer_read32();
     }

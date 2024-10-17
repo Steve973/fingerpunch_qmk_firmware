@@ -3,19 +3,32 @@
 
 #pragma once
 
-#define STICK_TIMER_MS 5
 #define CALIBRATION_SAMPLE_COUNT 100
-#define INNER_DEADZONE 60
-#define OUTER_DEADZONE 60
-#define ACTUATION_POINT 40
-#define JOYSTICK_MIN_RAW 0
-#define JOYSTICK_MAX_RAW 1023
-
-#define JOYSTICK_MIN_OUT -127
-#define JOYSTICK_MAX_OUT 127
 
 #define MIN_VAL(a, b) ((a) < (b) ? (a) : (b))
 #define MAX_VAL(a, b) ((a) > (b) ? (a) : (b))
+
+typedef struct {
+    uint16_t actuation_point;
+    uint16_t deadzone_inner;
+    uint16_t deadzone_outer;
+    int8_t   out_min;
+    int8_t   out_max;
+    uint16_t raw_min;
+    uint16_t raw_max;
+    uint16_t stick_timer_ms;
+} joystick_profile_t;
+
+#define JS_ADAFRUIT_2765 ((const joystick_profile_t) { \
+    .actuation_point = 40, \
+    .deadzone_inner = 60, \
+    .deadzone_outer = 60, \
+    .out_min = -127, \
+    .out_max = 127, \
+    .raw_min = 0, \
+    .raw_max = 1023, \
+    .stick_timer_ms = 5 \
+})
 
 enum vikstik_keycodes {
     VJS_QUAD = QK_KB,  // stick rotation quadrants
