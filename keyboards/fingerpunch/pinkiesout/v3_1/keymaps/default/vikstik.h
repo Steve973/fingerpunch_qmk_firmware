@@ -62,5 +62,5 @@ int16_t get_stick_up_angle(void);
 void    set_stick_up_angle(int16_t angle);
 void    step_stick_up_orientation(int8_t step);
 void    step_stick_mode(void);
-void    get_raw_quadrant(int8_t* out_quadrant, int16_t* out_angle);
+void    calculate_direction(int8_t* out_quadrant, int16_t* out_angle, bool rotate);
 void    process_vikstik(void);

@@ -1,14 +1,6 @@
 #include QMK_KEYBOARD_H
 #include "vikstik.h"
-
-// Defines names for use in layer keycodes and the keymap
-enum layer_names {
-    _QWERTY,
-    _COLEMAK,
-    _LOWER,
-    _RAISE,
-    _ADJUST
-};
+#include "layers.h"
 
 enum custom_keycodes {
     QWERTY = SAFE_RANGE,
@@ -97,18 +89,14 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
         case VJS_QUAD:
             if (!record->event.pressed) {
-                uprintf("VJS_QUAD key released\n");
                 int8_t raw_quadrant;
                 int16_t raw_angle;
-                get_raw_quadrant(&raw_quadrant, &raw_angle);
-                uprintf("raw_quadrant: %d, raw_angle: %d\n", raw_quadrant, raw_angle);
+                calculate_direction(&raw_quadrant, &raw_angle, false);
                 if (raw_quadrant > -1) {
-                    uprintf("Setting stick orientation and angle\n");
                     set_stick_up_orientation(raw_quadrant);
                     set_stick_up_angle(raw_angle);
                 } else {
                     shifted = get_mods() & MOD_MASK_SHIFT;
-                    uprintf("Stepping stick orientation, shifted: %d\n", shifted);
                     step_stick_up_orientation(shifted ? -1 : 1);
                 }
             }

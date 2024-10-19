@@ -3,6 +3,7 @@
 
 #include QMK_KEYBOARD_H
 #include "vikstik.h"
+#include "layers.h"
 #include "analog.h"
 #include <math.h>
 
@@ -69,7 +70,7 @@ static const stick_mode_handler stick_modes[] = {
  */
 static const vikstik_config_t VIKSTIK_CONFIG_DEFAULT = {
     .mode = VIKSTIK_SM_ARROWS,
-    .up_orientation = LEFT,
+    .up_orientation = RIGHT,
     .up_angle = 0
 };
 
@@ -357,16 +358,16 @@ void apply_scaling_and_deadzone(int16_t rawx, int16_t rawy, int8_t* outx, int8_t
 static void handle_rotation(int8_t x, int8_t y, int8_t* outx, int8_t* outy) {
     switch (vikstik_config.up_orientation) {
         case LEFT: // rotate 270 degrees counterclockwise
-            *outx = y;
-            *outy = -x;
+            *outx = -y;
+            *outy = x;
             break;
         case DOWN: // rotate 180 degrees counterclockwise
             *outx = -x;
             *outy = -y;
             break;
         case RIGHT: // rotate 90 degrees counterclockwise
-            *outx = -y;
-            *outy = x;
+            *outx = y;
+            *outy = -x;
             break;
         case UP: // up is up, so do not rotate
         default:
@@ -418,7 +419,7 @@ static void calibrate_vikstik(joystick_calibration_t* stick) {
  * It returns the quadrant number (0-3) based on the angle of the joystick.
  * @return The quadrant number (0-3), or -1 if the joystick is at its neutral position.
  */
-static void calculate_raw_quadrant(int16_t rawx, int16_t rawy, int8_t* out_quadrant, int16_t* out_angle) {
+static void calculate_raw_direction(int16_t rawx, int16_t rawy, int8_t* out_quadrant, int16_t* out_angle) {
     int8_t scalex = 0, scaley = 0;
     apply_scaling_and_deadzone(rawx, rawy, &scalex, &scaley);
 
@@ -440,13 +441,14 @@ static void calculate_raw_quadrant(int16_t rawx, int16_t rawy, int8_t* out_quadr
     // For more simple or discrete translation, determine quadrant
     // based on 45-degree sectors centered on cardinal directions:
     if (angle >= 67 && angle < 113) {
-        *out_quadrant = 3; // installed with "left" up
+        *out_quadrant = UP;
     } else if (angle >= 157 && angle < 203) {
-        *out_quadrant = 2; // installed with "bottom" up
+        *out_quadrant = LEFT;
     } else if (angle >= 247 && angle < 293) {
-        *out_quadrant = 1; // installed with "right" up
-    } else if ((angle > 337) || (angle < 23)) {
-        *out_quadrant = 0; // installed with "top" up
+        *out_quadrant = DOWN;
+    } else if (((angle > 337) && (angle <= 360)) ||
+               ((angle >= 0) && (angle < 23))) {
+        *out_quadrant = RIGHT;
     } else {
         *out_quadrant = -1;
     }
@@ -479,6 +481,35 @@ static void read_vikstik(int8_t* outx, int8_t* outy) {
 }
 
 /**
+ * @brief Get the raw (unaltered, un-rotated) quadrant based on joystick position.
+ *
+ * This function determines the quadrant based on the joystick position without any rotation.
+ * It returns the quadrant number (0-3) based on the angle of the joystick.
+ * @return The quadrant number (0-3), or -1 if the joystick is at its neutral position.
+ */
+void calculate_direction(int8_t* out_quadrant, int16_t* out_angle, bool rotate) {
+    int16_t rawx = 0, rawy = 0;
+    read_vikstik_raw(&rawx, &rawy);
+    calculate_raw_direction(rawx, rawy, out_quadrant, out_angle);
+    if (rotate && *out_quadrant > -1) {
+        switch (vikstik_config.up_orientation) {
+            case LEFT:
+                *out_quadrant = (*out_quadrant + 3) % ORIENTATION_COUNT;
+                break;
+            case DOWN:
+                *out_quadrant = (*out_quadrant + 2) % ORIENTATION_COUNT;
+                break;
+            case RIGHT:
+                *out_quadrant = (*out_quadrant + 1) % ORIENTATION_COUNT;
+                break;
+            case UP:
+            default:
+                break;
+       }
+    }
+}
+
+/**
  * @brief Handles the joystick input and processes it according to the current mode.
  *
  * This function reads the joystick input, processes it based on the current mode,
@@ -487,25 +518,75 @@ static void read_vikstik(int8_t* outx, int8_t* outy) {
  * @param stick Pointer to the joystick calibration data.
  */
 static void handle_vikstik(void) {
-    int8_t x = 0, y = 0;
-    read_vikstik(&x, &y);
-    
-    if (vikstik_config.mode < VIKSTIK_SM_END) {
-        stick_modes[vikstik_config.mode](x, y);
+    uint8_t active_layer = get_highest_layer(layer_state);
+    if (active_layer < _LOWER) {
+        if (vikstik_config.mode < VIKSTIK_SM_END) {
+            int8_t x = 0, y = 0;
+            read_vikstik(&x, &y);
+            stick_modes[vikstik_config.mode](x, y);
+        }
+    } else {
+        int8_t quadrant;
+        calculate_direction(&quadrant, &(int16_t){0}, true);
+        switch (active_layer) {
+            case _LOWER:
+                switch (quadrant) {
+                    case UP:
+                        fp_rgblight_step();
+                        break;
+                    case DOWN:
+                        fp_rgblight_step_reverse();
+                        break;
+                    case RIGHT:
+                        fp_rgblight_increase_val();
+                        break;
+                    case LEFT:
+                        fp_rgblight_decrease_val();
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case _RAISE:
+                switch (quadrant) {
+                    case UP:
+                        fp_rgblight_increase_sat();
+                        break;
+                    case DOWN:
+                        fp_rgblight_decrease_sat();
+                        break;
+                    case RIGHT:
+                        fp_rgblight_increase_hue();
+                        break;
+                    case LEFT:
+                        fp_rgblight_decrease_hue();
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case _ADJUST:
+                switch (quadrant) {
+                    case UP:
+                        rgb_matrix_enable();
+                        break;
+                    case DOWN:
+                        rgb_matrix_disable();
+                        break;
+                    case RIGHT:
+                        rgb_matrix_increase_speed();
+                        break;
+                    case LEFT:
+                        rgb_matrix_decrease_speed();
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            default:
+                break;
+        }
     }
-}
-
-/**
- * @brief Get the raw (unaltered, un-rotated) quadrant based on joystick position.
- *
- * This function determines the quadrant based on the joystick position without any rotation.
- * It returns the quadrant number (0-3) based on the angle of the joystick.
- * @return The quadrant number (0-3), or -1 if the joystick is at its neutral position.
- */
-void get_raw_quadrant(int8_t* out_quadrant, int16_t* out_angle) {
-    int16_t rawx = 0, rawy = 0;
-    read_vikstik_raw(&rawx, &rawy);
-    calculate_raw_quadrant(rawx, rawy, out_quadrant, out_angle);
 }
 
 /**
@@ -526,7 +607,7 @@ void keyboard_post_init_user(void) {
     bool is_invalid = (vikstik_config.mode >= VIKSTIK_SM_END ||
                        vikstik_config.up_orientation < UP || vikstik_config.up_orientation >= ORIENTATION_COUNT || 
                        vikstik_config.up_angle < 0 || vikstik_config.up_angle > 360);
-    if (is_uninitialized || is_invalid) {
+    if (is_uninitialized || is_invalid || true) {
         eeconfig_init_user();
     }
 }
