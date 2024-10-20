@@ -49,19 +49,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define VIK_GPIO_2        GP27
 #define VIK_WS2812_DI_PIN GP25
 
-// For the analog mini joystick
-// Check to see that VIK is enabled, and if either VIKSTIK_ENABLE or VIKSTIK_LITE_ENABLE is enabled
-#if defined(VIK_ENABLE) && (defined(VIKSTIK_ENABLE) || defined(VIKSTIK_LITE_ENABLE))
-    #define JOYSTICK_ENABLE
-    #define JOYSTICK_AXIS_COUNT 2
-    #define JS_MODE             VIKSTIK_SM_ARROWS
-    #define JS_UP_ORIENTATION   JS_RIGHT
-    #define ANALOG_DRIVER_REQUIRED
-
-    // Allow user to specify joystick profile, or default to 10-bit symmetric 8-bit
-    #ifndef JOYSTICK_PROFILE
-        #define JOYSTICK_PROFILE JS_10BIT_SYM8BIT
-    #endif
+#ifdef JOYSTICK_ENABLE
+  #define JOYSTICK_AXIS_COUNT 2
+  #define JS_MODE             VIKSTIK_SM_ARROWS
+  #define JS_UP_ORIENTATION   JS_RIGHT
 #endif
 
 // Used only if you have a display with RESET unconnected, set to unused pin
