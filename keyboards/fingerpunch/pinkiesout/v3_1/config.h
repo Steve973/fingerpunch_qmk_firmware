@@ -49,6 +49,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define VIK_GPIO_2        GP27
 #define VIK_WS2812_DI_PIN GP25
 
+#ifdef JOYSTICK_ENABLE
+  #define JOYSTICK_AXIS_COUNT 2
+  #define JS_MODE             VIKSTIK_SM_ARROWS
+  #define JS_UP_ORIENTATION   JS_RIGHT
+#endif
+
 // Used only if you have a display with RESET unconnected, set to unused pin
 #define VIK_DISPLAY_RST_UNUSED_PIN GP15
 
@@ -59,6 +65,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define ENCODERS_PAD_A {GP1, GP13}
 #define ENCODERS_PAD_B {GP14, GP12}
 #define ENCODER_RESOLUTION 2
+
+/* OLED params */
+#ifdef OLED_ENABLE
+  #define OLED_IC OLED_IC_SH1107
+  #define OLED_DISPLAY_ADDRESS 0x3D
+  #define OLED_DISPLAY_128X128
+  #define OLED_DISPLAY_WIDTH 128
+  #define OLED_DISPLAY_HEIGHT 128
+  #define OLED_BRIGHTNESS 96
+#endif
 
 #define WS2812_DI_PIN GP25
 #ifdef RGBLIGHT_ENABLE

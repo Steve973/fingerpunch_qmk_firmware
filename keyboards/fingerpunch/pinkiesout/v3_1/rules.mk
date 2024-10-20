@@ -12,7 +12,7 @@ LTO_ENABLE = no
 #
 BOOTMAGIC_ENABLE = no       # Virtual DIP switch configuration
 EXTRAKEY_ENABLE = yes       # Audio control and System control
-CONSOLE_ENABLE = no        # Console for debug
+CONSOLE_ENABLE = yes        # Console for debug
 COMMAND_ENABLE = no        # Commands for debug and configuration
 # Do not enable SLEEP_LED_ENABLE. it uses the same timer as BACKLIGHT_ENABLE
 SLEEP_LED_ENABLE = no       # Breathing sleep LED during USB suspend
@@ -50,5 +50,31 @@ SERIAL_DRIVER = vendor
 WS2812_DRIVER = vendor
 
 VIK_ENABLE = yes
+
+OLED_ENABLE = yes
+OLED_TRANSPORT = i2c
+
+# For the analog mini joystick
+# Check to see that VIK is enabled, and if either VIKSTIK_ENABLE or VIKSTIK_LITE_ENABLE is enabled
+ifeq ($(and $(filter yes,$(VIK_ENABLE)),$(or $(filter yes,$(VIKSTIK_ENABLE)),$(filter yes,$(VIKSTIK_LITE_ENABLE)))),yes)
+    JOYSTICK_ENABLE = yes
+    ANALOG_DRIVER_REQUIRED = yes
+
+    # Allow user to specify joystick profile, or default to 10-bit symmetric 8-bit
+    JOYSTICK_PROFILE ?= JS_10BIT_SYM8BIT
+    OPT_DEFS += -DJOYSTICK_PROFILE=$(JOYSTICK_PROFILE)
+
+    # Include common VikStik code
+    SRC += keyboards/fingerpunch/pinkiesout/v3_1/keymaps/default/vikstik.c
+
+    # Determine which version to include
+    ifeq ($(strip $(VIKSTIK_LITE_ENABLE)), yes)
+        VIKSTIK_LITE_ENABLE = yes
+        OPT_DEFS += -DVIKSTIK_LITE_ENABLE
+    else
+        VIKSTIK_ENABLE = yes
+        OPT_DEFS += -DVIKSTIK_ENABLE
+    endif
+endif
 
 include keyboards/fingerpunch/src/rules.mk
