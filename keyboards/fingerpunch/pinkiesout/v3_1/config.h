@@ -51,7 +51,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #ifdef JOYSTICK_ENABLE
   #define JOYSTICK_AXIS_COUNT 2
-  #define EECONFIG_USER_DATA_SIZE 4
+  #define JS_MODE             VIKSTIK_SM_ARROWS
+  #define JS_UP_ORIENTATION   JS_RIGHT
 #endif
 
 // Used only if you have a display with RESET unconnected, set to unused pin

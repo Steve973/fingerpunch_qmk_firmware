@@ -33,5 +33,13 @@
         "type" : "single",
         "name" : "HAPTIC_ENABLE",
         "user_input": "Do you have haptic feedback?"
+    },
+    {
+        "type" : "one-of",
+        "names" : [
+                    "VIKSTIK_ENABLE",
+                    "VIKSTIK_LITE_ENABLE"
+                  ],
+        "user_input": "Select a joystick: None, VIKSTIK, VIKSTIK_LITE?"
     }
 ]

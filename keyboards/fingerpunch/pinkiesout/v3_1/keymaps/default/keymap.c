@@ -2,6 +2,10 @@
 #include "vikstik.h"
 #include "layers.h"
 
+#if defined(VIKSTIK_ENABLE) || defined(VIKSTIK_LITE_ENABLE)
+    #include "vikstik.h"
+#endif
+
 enum custom_keycodes {
     QWERTY = SAFE_RANGE,
     LOWER,
@@ -55,8 +59,6 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 };
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
-    bool shifted;
-
     // Handle layer switching
     switch (keycode) {
         case LOWER:
@@ -87,26 +89,13 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             }
             return false;
 
-        case VJS_QUAD:
-            if (!record->event.pressed) {
-                int8_t raw_quadrant;
-                int16_t raw_angle;
-                calculate_direction(&raw_quadrant, &raw_angle, false);
-                if (raw_quadrant > -1) {
-                    set_stick_up_orientation(raw_quadrant);
-                    set_stick_up_angle(raw_angle);
-                } else {
-                    shifted = get_mods() & MOD_MASK_SHIFT;
-                    step_stick_up_orientation(shifted ? -1 : 1);
-                }
-            }
-            return false;
- 
+        #if defined(VIKSTIK_ENABLE) || defined(VIKSTIK_LITE_ENABLE)
         case VJS_SMOD:
             if (record->event.pressed) {
                 step_stick_mode();
             }
             return false;
+        #endif
 
         default:
             break;
@@ -116,7 +105,9 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 }
 
 void housekeeping_task_kb(void) {
+    #if defined(VIKSTIK_ENABLE) || defined(VIKSTIK_LITE_ENABLE)
     process_vikstik();
+    #endif
     housekeeping_task_user();
 }
 
